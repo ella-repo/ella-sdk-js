@@ -1,0 +1,63 @@
+name: Release
+
+# Every push to main publishes a new version derived from the pipeline run number:
+# 0.0.<run_number> (v0.0.1, v0.0.2, ...). We do NOT push a version-bump commit back
+# to main — we tag a throwaway commit that carries the bumped package.json and push
+# ONLY the tag. So main is never written to (no retrigger loop, works without write
+# access to the branch), while `npm i github:ORG/ella-sdk#v0.0.N` still gets a
+# package.json whose version matches the tag.
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+permissions:
+    contents: write # needed to push the tag and create the release
+
+concurrency:
+    group: release
+    cancel-in-progress: false
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: npm
+
+            - run: npm ci
+
+            # Gate the release on a green typecheck + build.
+            - run: npm run typecheck
+            - run: npm run build
+
+            - name: Compute version from run number
+              id: v
+              run: echo "version=0.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+            - name: Configure git identity
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            - name: Tag the version (tag only — main is not touched)
+              env:
+                  VERSION: ${{ steps.v.outputs.version }}
+              run: |
+                  npm version "$VERSION" --no-git-tag-version
+                  git add package.json package-lock.json
+                  git commit -m "release: v$VERSION"
+                  git tag "v$VERSION"
+                  git push origin "v$VERSION"
+
+            - name: Create GitHub Release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  VERSION: ${{ steps.v.outputs.version }}
+              run: gh release create "v$VERSION" --generate-notes --title "v$VERSION"
