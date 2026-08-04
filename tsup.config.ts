@@ -13,12 +13,12 @@ export default defineConfig([
     // UMD/IIFE bundle for a hosted <script> tag exposing window.Ella.
     // Also copied next to example/index.html so the demo works from any served dir.
     {
-        entry: { 'ella-sdk': 'src/index.ts' },
+        entry: { 'ella-sdk-js': 'src/index.ts' },
         format: ['iife'],
         globalName: 'Ella',
         sourcemap: true,
         minify: true,
         outExtension: () => ({ js: '.umd.js' }),
-        onSuccess: 'cp dist/ella-sdk.umd.js example/ella-sdk.umd.js',
+        onSuccess: 'cp dist/ella-sdk-js.umd.js example/ella-sdk-js.umd.js',
     },
 ]);

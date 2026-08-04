@@ -6,8 +6,10 @@ export type { EllaErrorCode } from './protocol';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+type RequestType = typeof ELLA_MESSAGE_TYPE.getTokenRequest | typeof ELLA_MESSAGE_TYPE.getContentApiUrlRequest;
+
 type Pending = {
-    resolve: (token: string) => void;
+    resolve: (value: string) => void;
     reject: (error: EllaError) => void;
     timer: ReturnType<typeof setTimeout>;
 };
@@ -32,33 +34,21 @@ function newRequestId(): string {
 function ensureListener(t: Transport): void {
     if (unsubscribe) return;
     unsubscribe = t.onMessage((message) => {
-        if (message.type !== ELLA_MESSAGE_TYPE.getTokenResponse) return;
+        if (!('ok' in message)) return; // ignore request-type envelopes
         const entry = pending.get(message.requestId);
         if (!entry) return; // unknown/late — ignore
         clearTimeout(entry.timer);
         pending.delete(message.requestId);
         if (message.ok) {
-            entry.resolve(message.token);
+            entry.resolve(message.type === ELLA_MESSAGE_TYPE.getContentApiUrlResponse ? message.url : message.token);
         } else {
             entry.reject(new EllaError(message.error.code, message.error.message));
         }
     });
 }
 
-/**
- * True when running inside a recognized Ella host (native WebView or iframe).
- * Synchronous — safe to call before any token request.
- */
-export function isInsideElla(): boolean {
-    return getTransport() !== null;
-}
-
-/**
- * Request the signed-in user's auth token from the Ella app. Resolves with the
- * raw token string, or rejects with an `EllaError` (`NOT_IN_ELLA`, `NO_AUTH`,
- * `TIMEOUT`, `INTERNAL`).
- */
-export function getToken(options?: { timeoutMs?: number }): Promise<string> {
+/** Send a request envelope and await its correlated response as a string. */
+function request(type: RequestType, label: string, options?: { timeoutMs?: number }): Promise<string> {
     const t = getTransport();
     if (!t) {
         return Promise.reject(new EllaError('NOT_IN_ELLA', 'Not running inside the Ella app.'));
@@ -71,18 +61,39 @@ export function getToken(options?: { timeoutMs?: number }): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         const timer = setTimeout(() => {
             pending.delete(requestId);
-            reject(new EllaError('TIMEOUT', `getToken timed out after ${timeoutMs}ms.`));
+            reject(new EllaError('TIMEOUT', `${label} timed out after ${timeoutMs}ms.`));
         }, timeoutMs);
 
         pending.set(requestId, { resolve, reject, timer });
 
-        t.send({
-            channel: ELLA_CHANNEL,
-            v: ELLA_PROTOCOL_VERSION,
-            type: ELLA_MESSAGE_TYPE.getTokenRequest,
-            requestId,
-        });
+        t.send({ channel: ELLA_CHANNEL, v: ELLA_PROTOCOL_VERSION, type, requestId });
     });
+}
+
+/**
+ * True when running inside a recognized Ella host (native WebView or iframe).
+ * Synchronous — safe to call before any request.
+ */
+export function isInsideElla(): boolean {
+    return getTransport() !== null;
+}
+
+/**
+ * Request the signed-in user's auth token from the Ella app. Resolves with the
+ * raw token string, or rejects with an `EllaError` (`NOT_IN_ELLA`, `NO_AUTH`,
+ * `TIMEOUT`, `INTERNAL`).
+ */
+export function getToken(options?: { timeoutMs?: number }): Promise<string> {
+    return request(ELLA_MESSAGE_TYPE.getTokenRequest, 'getToken', options);
+}
+
+/**
+ * Request the Ella backend base URL to call (paired with `getToken()`). Resolves
+ * with the URL string, or rejects with an `EllaError` (`NOT_IN_ELLA`, `TIMEOUT`,
+ * `INTERNAL`).
+ */
+export function getContentApiUrl(options?: { timeoutMs?: number }): Promise<string> {
+    return request(ELLA_MESSAGE_TYPE.getContentApiUrlRequest, 'getContentApiUrl', options);
 }
 
 /**

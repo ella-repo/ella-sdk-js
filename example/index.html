@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Ella SDK — getToken() demo</title>
+        <title>Ella SDK — demo</title>
         <style>
             :root {
                 color-scheme: light dark;
@@ -79,7 +79,11 @@
             <span id="host-status">Checking host…</span>
         </div>
 
-        <button id="get-token" disabled>Get token</button>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <button id="get-token" disabled>Get token</button>
+            <button id="get-content-api-url" disabled>Get content API URL</button>
+            <button id="get-both" disabled>Both</button>
+        </div>
 
         <div>
             <div class="label">Result</div>
@@ -88,44 +92,58 @@
 
         <!--
           In production, load the hosted UMD bundle instead:
-          <script src="https://<ella-sdk-host>/ella-sdk.umd.js"></script>
+          <script src="https://<ella-sdk-js-host>/ella-sdk-js.umd.js"></script>
           The bundle sits next to this file (copied here by `npm run build`), so it
           resolves no matter which directory is served.
         -->
-        <script src="./ella-sdk.umd.js"></script>
+        <script src="./ella-sdk-js.umd.js"></script>
         <script>
             const dot = document.getElementById('host-dot');
             const hostStatus = document.getElementById('host-status');
-            const button = document.getElementById('get-token');
             const output = document.getElementById('output');
+            const buttons = Array.from(document.querySelectorAll('button'));
 
             if (!window.Ella) {
                 // The UMD bundle failed to load (wrong path / not served / not built).
                 dot.classList.remove('ok');
-                hostStatus.textContent = 'SDK bundle failed to load — ./ella-sdk.umd.js not found. Run `npm run build`.';
+                hostStatus.textContent = 'SDK bundle failed to load — ./ella-sdk-js.umd.js not found. Run `npm run build`.';
             } else {
                 const inside = window.Ella.isInsideElla();
                 dot.classList.toggle('ok', inside);
                 hostStatus.textContent = inside
                     ? 'Running inside the Ella app ✓'
-                    : 'Not inside the Ella app — getToken() will reject with NOT_IN_ELLA';
-                button.disabled = false;
-            }
+                    : 'Not inside the Ella app — calls reject with NOT_IN_ELLA';
+                buttons.forEach((b) => (b.disabled = false));
 
-            button.addEventListener('click', async () => {
-                button.disabled = true;
-                output.classList.remove('error');
-                output.textContent = 'Requesting…';
-                try {
-                    const token = await window.Ella.getToken();
-                    output.textContent = token;
-                } catch (err) {
-                    output.classList.add('error');
-                    output.textContent = `${err.name} [${err.code}]: ${err.message}`;
-                } finally {
-                    button.disabled = false;
-                }
-            });
+                const run = async (fn) => {
+                    buttons.forEach((b) => (b.disabled = true));
+                    output.classList.remove('error');
+                    output.textContent = 'Requesting…';
+                    try {
+                        const value = await fn();
+                        output.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+                    } catch (err) {
+                        output.classList.add('error');
+                        output.textContent = `${err.name} [${err.code}]: ${err.message}`;
+                    } finally {
+                        buttons.forEach((b) => (b.disabled = false));
+                    }
+                };
+
+                document.getElementById('get-token').addEventListener('click', () => run(() => window.Ella.getToken()));
+                document
+                    .getElementById('get-content-api-url')
+                    .addEventListener('click', () => run(() => window.Ella.getContentApiUrl()));
+                document.getElementById('get-both').addEventListener('click', () =>
+                    run(async () => {
+                        const [token, contentApiUrl] = await Promise.all([
+                            window.Ella.getToken(),
+                            window.Ella.getContentApiUrl(),
+                        ]);
+                        return { token, contentApiUrl };
+                    })
+                );
+            }
         </script>
     </body>
 </html>

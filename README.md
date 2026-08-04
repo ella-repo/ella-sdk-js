@@ -1,4 +1,4 @@
-# ella-sdk
+# ella-sdk-js
 
 SDK for web services that run inside the **Ella app** WebView. It exposes an async
 `getToken()` that asks the native app for the signed-in user's auth token, so your
@@ -13,17 +13,17 @@ Firebase Admin SDK.
 From GitHub (pin to a released tag):
 
 ```bash
-npm install github:ella-repo/ella-sdk#v0.0.1
+npm install github:ella-repo/ella-sdk-js#v0.0.1
 ```
 
 ```js
-import { getToken, isInsideElla, EllaError } from 'ella-sdk';
+import { getToken, isInsideElla, EllaError } from 'ella-sdk-js';
 ```
 
 Or via a hosted `<script>` (exposes a global `Ella`):
 
 ```html
-<script src="https://<ella-sdk-host>/ella-sdk.umd.js"></script>
+<script src="https://<ella-sdk-js-host>/ella-sdk-js.umd.js"></script>
 <script>
     Ella.getToken().then((token) => {
         /* fetch('/api', { headers: { Authorization: `Bearer ${token}` } }) */
@@ -52,6 +52,18 @@ try {
         /* prompt the user to sign into Ella */
     }
 }
+```
+
+### `getContentApiUrl(options?: { timeoutMs?: number }): Promise<string>`
+
+Resolves with the Ella backend base URL to call (pair it with the token from
+`getToken()`). Rejects with an `EllaError` (`NOT_IN_ELLA`, `TIMEOUT`, `INTERNAL`).
+
+```js
+const [token, contentApiUrl] = await Promise.all([getToken(), getContentApiUrl()]);
+await fetch(`${contentApiUrl}/some-endpoint`, {
+    headers: { Authorization: `Bearer ${token}` },
+});
 ```
 
 ### `isInsideElla(): boolean`

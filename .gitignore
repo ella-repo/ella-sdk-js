@@ -1,6 +1,6 @@
 node_modules/
 dist/
-example/ella-sdk.umd.js
+example/ella-sdk-js.umd.js
 *.log
 .DS_Store
 .idea/

@@ -1,13 +1,13 @@
 {
-    "name": "ella-sdk",
+    "name": "ella-sdk-js",
     "version": "1.0.0",
     "description": "SDK for web services running inside the Ella app WebView. Exposes getToken() to obtain the signed-in user's auth token.",
     "type": "module",
     "main": "./dist/index.cjs",
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    "unpkg": "./dist/ella-sdk.umd.js",
-    "jsdelivr": "./dist/ella-sdk.umd.js",
+    "unpkg": "./dist/ella-sdk-js.umd.js",
+    "jsdelivr": "./dist/ella-sdk-js.umd.js",
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",

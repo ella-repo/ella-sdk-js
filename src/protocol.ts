@@ -9,6 +9,8 @@ export const ELLA_PROTOCOL_VERSION = 1;
 export const ELLA_MESSAGE_TYPE = {
     getTokenRequest: 'ella/getToken/request',
     getTokenResponse: 'ella/getToken/response',
+    getContentApiUrlRequest: 'ella/getContentApiUrl/request',
+    getContentApiUrlResponse: 'ella/getContentApiUrl/response',
 } as const;
 
 export type EllaErrorCode = 'NO_AUTH' | 'TIMEOUT' | 'NOT_IN_ELLA' | 'INTERNAL';
@@ -30,7 +32,18 @@ export type GetTokenResponse = EnvelopeBase & {
         | { ok: false; error: { code: EllaErrorCode; message: string } }
     );
 
-export type EllaMessage = GetTokenRequest | GetTokenResponse;
+export type GetContentApiUrlRequest = EnvelopeBase & {
+    type: typeof ELLA_MESSAGE_TYPE.getContentApiUrlRequest;
+};
+
+export type GetContentApiUrlResponse = EnvelopeBase & {
+    type: typeof ELLA_MESSAGE_TYPE.getContentApiUrlResponse;
+} & (
+        | { ok: true; url: string }
+        | { ok: false; error: { code: EllaErrorCode; message: string } }
+    );
+
+export type EllaMessage = GetTokenRequest | GetTokenResponse | GetContentApiUrlRequest | GetContentApiUrlResponse;
 
 export function isEllaMessage(data: unknown): data is EllaMessage {
     if (typeof data !== 'object' || data === null) return false;
