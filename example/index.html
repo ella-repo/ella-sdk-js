@@ -82,7 +82,7 @@
         <div style="display: flex; flex-wrap: wrap; gap: 8px">
             <button id="get-token" disabled>Get token</button>
             <button id="get-content-api-url" disabled>Get content API URL</button>
-            <button id="get-both" disabled>Both</button>
+            <button id="get-version" disabled>Get version from Content API</button>
         </div>
 
         <div>
@@ -134,13 +134,23 @@
                 document
                     .getElementById('get-content-api-url')
                     .addEventListener('click', () => run(() => window.Ella.getContentApiUrl()));
-                document.getElementById('get-both').addEventListener('click', () =>
+                document.getElementById('get-version').addEventListener('click', () =>
                     run(async () => {
+                        // Full flow: token + API origin, then an authenticated call to /version.
                         const [token, contentApiUrl] = await Promise.all([
                             window.Ella.getToken(),
                             window.Ella.getContentApiUrl(),
                         ]);
-                        return { token, contentApiUrl };
+                        const url = `${contentApiUrl}/version`;
+                        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                        const text = await res.text();
+                        let body;
+                        try {
+                            body = JSON.parse(text);
+                        } catch {
+                            body = text;
+                        }
+                        return { url, status: res.status, body };
                     })
                 );
             }

@@ -74,6 +74,26 @@ Synchronous host detection. `true` inside the native WebView or an iframe host.
 
 Resolves once an Ella host is detected (immediate today; reserved for future handshakes).
 
+## Example: call the backend
+
+Combine `getToken()` and `getContentApiUrl()` to make an authenticated request —
+here, fetching the API version:
+
+```js
+import { getToken, getContentApiUrl } from 'ella-sdk-js';
+
+async function getVersion() {
+    const [token, contentApiUrl] = await Promise.all([getToken(), getContentApiUrl()]);
+    const res = await fetch(`${contentApiUrl}/version`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.json();
+}
+```
+
+> The backend must allow CORS from the page's origin (and the `Authorization`
+> header) for the browser to accept the cross-origin response.
+
 ## How it works
 
 The SDK sends a versioned message over the WebView bridge and awaits a correlated
