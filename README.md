@@ -1,19 +1,25 @@
 # ella-sdk-js
 
-SDK for web services that run inside the **Ella app** WebView. It exposes an async
-`getToken()` that asks the native app for the signed-in user's auth token, so your
-page can call your backend on the user's behalf.
+Javascript SDK to expose exclusive API for web services that run inside the
+ **Ella App** WebView. The API exposes methods to get access tokens for use
+ with _Ella Backend_.
 
-The token is the user's **Firebase ID token** (the same one the Ella app sends to its
-own backend as `Authorization: Bearer <token>`). Verify it server-side with the
-Firebase Admin SDK.
+* `getToken()` returns a valid token (1 hr expiry) for the signed-in
+  user. This is a Firebase token similar to what _Ella App_ uses, and may be
+  used to access the backend API on behalf of the user.
+
+* `getApiUrl()' returns a URL prefix to be used to access the backend API,
+  reflecting the actual environment of the signed-in user.
+
+* `isInsideElla()` detects whether the caller runs inside the native WebView
+  or an iframe host.
 
 ## Install
 
 From GitHub (pin to a released tag):
 
 ```bash
-npm install github:ella-repo/ella-sdk-js#v0.0.1
+npm install github:ella-repo/ella-sdk-js#v0.0.3
 ```
 
 ```js
@@ -35,7 +41,8 @@ Or via a hosted `<script>` (exposes a global `Ella`):
 
 ### `getToken(options?: { timeoutMs?: number }): Promise<string>`
 
-Resolves with the raw token string. Rejects with an `EllaError` whose `code` is one of:
+Resolves with the raw token string.
+Rejects with an `EllaError` whose `code` is one of:
 
 | code          | meaning                                             |
 | ------------- | --------------------------------------------------- |
