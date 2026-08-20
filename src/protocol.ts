@@ -11,6 +11,8 @@ export const ELLA_MESSAGE_TYPE = {
     getTokenResponse: 'ella/getToken/response',
     getContentApiUrlRequest: 'ella/getContentApiUrl/request',
     getContentApiUrlResponse: 'ella/getContentApiUrl/response',
+    trackEventRequest: 'ella/trackEvent/request',
+    trackEventResponse: 'ella/trackEvent/response',
 } as const;
 
 export type EllaErrorCode = 'NO_AUTH' | 'TIMEOUT' | 'NOT_IN_ELLA' | 'INTERNAL';
@@ -43,7 +45,27 @@ export type GetContentApiUrlResponse = EnvelopeBase & {
         | { ok: false; error: { code: EllaErrorCode; message: string } }
     );
 
-export type EllaMessage = GetTokenRequest | GetTokenResponse | GetContentApiUrlRequest | GetContentApiUrlResponse;
+/** Event properties sent with `trackEvent()`. The app adds its own on top — its values
+ *  win on a collision, so the page cannot rewrite `user_id`, `page_name` and the rest. */
+export type EllaEventParams = Record<string, unknown>;
+
+export type TrackEventRequest = EnvelopeBase & {
+    type: typeof ELLA_MESSAGE_TYPE.trackEventRequest;
+    name: string;
+    params?: EllaEventParams;
+};
+
+export type TrackEventResponse = EnvelopeBase & {
+    type: typeof ELLA_MESSAGE_TYPE.trackEventResponse;
+} & ({ ok: true } | { ok: false; error: { code: EllaErrorCode; message: string } });
+
+export type EllaMessage =
+    | GetTokenRequest
+    | GetTokenResponse
+    | GetContentApiUrlRequest
+    | GetContentApiUrlResponse
+    | TrackEventRequest
+    | TrackEventResponse;
 
 export function isEllaMessage(data: unknown): data is EllaMessage {
     if (typeof data !== 'object' || data === null) return false;

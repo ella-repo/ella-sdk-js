@@ -1,15 +1,27 @@
-import { ELLA_CHANNEL, ELLA_MESSAGE_TYPE, ELLA_PROTOCOL_VERSION, EllaError } from './protocol';
+import {
+    ELLA_CHANNEL,
+    ELLA_MESSAGE_TYPE,
+    ELLA_PROTOCOL_VERSION,
+    EllaError,
+    EllaEventParams,
+    EllaMessage,
+} from './protocol';
 import { pickTransport, Transport } from './transport';
 
 export { EllaError } from './protocol';
-export type { EllaErrorCode } from './protocol';
+export type { EllaErrorCode, EllaEventParams } from './protocol';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-type RequestType = typeof ELLA_MESSAGE_TYPE.getTokenRequest | typeof ELLA_MESSAGE_TYPE.getContentApiUrlRequest;
+type RequestType =
+    | typeof ELLA_MESSAGE_TYPE.getTokenRequest
+    | typeof ELLA_MESSAGE_TYPE.getContentApiUrlRequest
+    | typeof ELLA_MESSAGE_TYPE.trackEventRequest;
 
 type Pending = {
-    resolve: (value: string) => void;
+    // `unknown` because responses carry different payloads — a token, a URL, or nothing
+    // at all for trackEvent. Each caller casts back to what its own request returns.
+    resolve: (value: unknown) => void;
     reject: (error: EllaError) => void;
     timer: ReturnType<typeof setTimeout>;
 };
@@ -40,15 +52,23 @@ function ensureListener(t: Transport): void {
         clearTimeout(entry.timer);
         pending.delete(message.requestId);
         if (message.ok) {
-            entry.resolve(message.type === ELLA_MESSAGE_TYPE.getContentApiUrlResponse ? message.url : message.token);
+            if (message.type === ELLA_MESSAGE_TYPE.getContentApiUrlResponse) entry.resolve(message.url);
+            else if (message.type === ELLA_MESSAGE_TYPE.getTokenResponse) entry.resolve(message.token);
+            else entry.resolve(undefined); // trackEvent — an ack, no payload
         } else {
             entry.reject(new EllaError(message.error.code, message.error.message));
         }
     });
 }
 
-/** Send a request envelope and await its correlated response as a string. */
-function request(type: RequestType, label: string, options?: { timeoutMs?: number }): Promise<string> {
+/** Send a request envelope and await its correlated response. `payload` carries the
+ *  request-specific fields, if the request has any. */
+function request<T>(
+    type: RequestType,
+    label: string,
+    options?: { timeoutMs?: number },
+    payload?: Record<string, unknown>
+): Promise<T> {
     const t = getTransport();
     if (!t) {
         return Promise.reject(new EllaError('NOT_IN_ELLA', 'Not running inside the Ella app.'));
@@ -58,15 +78,15 @@ function request(type: RequestType, label: string, options?: { timeoutMs?: numbe
     const requestId = newRequestId();
     const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => {
             pending.delete(requestId);
             reject(new EllaError('TIMEOUT', `${label} timed out after ${timeoutMs}ms.`));
         }, timeoutMs);
 
-        pending.set(requestId, { resolve, reject, timer });
+        pending.set(requestId, { resolve: resolve as (value: unknown) => void, reject, timer });
 
-        t.send({ channel: ELLA_CHANNEL, v: ELLA_PROTOCOL_VERSION, type, requestId });
+        t.send({ channel: ELLA_CHANNEL, v: ELLA_PROTOCOL_VERSION, type, requestId, ...payload } as EllaMessage);
     });
 }
 
@@ -84,7 +104,7 @@ export function isInsideElla(): boolean {
  * `TIMEOUT`, `INTERNAL`).
  */
 export function getToken(options?: { timeoutMs?: number }): Promise<string> {
-    return request(ELLA_MESSAGE_TYPE.getTokenRequest, 'getToken', options);
+    return request<string>(ELLA_MESSAGE_TYPE.getTokenRequest, 'getToken', options);
 }
 
 /**
@@ -93,7 +113,29 @@ export function getToken(options?: { timeoutMs?: number }): Promise<string> {
  * `INTERNAL`).
  */
 export function getContentApiUrl(options?: { timeoutMs?: number }): Promise<string> {
-    return request(ELLA_MESSAGE_TYPE.getContentApiUrlRequest, 'getContentApiUrl', options);
+    return request<string>(ELLA_MESSAGE_TYPE.getContentApiUrlRequest, 'getContentApiUrl', options);
+}
+
+/**
+ * Send an analytics event through the Ella app. The app records it the same way it
+ * records its own events, so the page needs no analytics key and no knowledge of where
+ * the events go.
+ *
+ * The app stamps every event with `event_source: 'external'` — pass your own
+ * `event_source` in `params` to identify which experience it came from. The app's own
+ * properties (`user_id`, `session_id`, `app_version`, `page_name`) always win, so they
+ * cannot be overwritten from the page.
+ *
+ * Resolves once the app has accepted the event, rejects with an `EllaError`
+ * (`NOT_IN_ELLA`, `TIMEOUT`, `INTERNAL`). No `timeoutMs` here on purpose: nothing waits on
+ * an analytics event, so there is nothing for a caller to tune — the shared default still
+ * bounds how long the request is held.
+ */
+export function trackEvent(name: string, params?: EllaEventParams): Promise<void> {
+    if (!name) {
+        return Promise.reject(new EllaError('INTERNAL', 'Event name is required.'));
+    }
+    return request<void>(ELLA_MESSAGE_TYPE.trackEventRequest, 'trackEvent', undefined, { name, params });
 }
 
 /**

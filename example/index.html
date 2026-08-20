@@ -83,6 +83,7 @@
             <button id="get-token" disabled>Get token</button>
             <button id="get-content-api-url" disabled>Get content API URL</button>
             <button id="get-version" disabled>Get version from Content API</button>
+            <button id="track-event" disabled>Track event</button>
         </div>
 
         <div>
@@ -151,6 +152,21 @@
                             body = text;
                         }
                         return { url, status: res.status, body };
+                    })
+                );
+                document.getElementById('track-event').addEventListener('click', () =>
+                    run(async () => {
+                        // `event_source` is optional — the app defaults it to "external".
+                        // Set here so the demo's events stay filterable in the report.
+                        const name = 'playback';
+                        const params = {
+                            event_source: 'sdk-demo',
+                            action: 'play',
+                            content_id: 'sdk-demo-content',
+                            position_sec: 0,
+                        };
+                        await window.Ella.trackEvent(name, params);
+                        return { sent: name, params };
                     })
                 );
             }
