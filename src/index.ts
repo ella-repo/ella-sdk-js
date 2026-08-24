@@ -1,10 +1,12 @@
 import {
     ELLA_CHANNEL,
+    ELLA_EVENT_SOURCE_PARAM,
     ELLA_MESSAGE_TYPE,
     ELLA_PROTOCOL_VERSION,
     EllaError,
     EllaEventParams,
     EllaMessage,
+    isValidEventSource,
 } from './protocol';
 import { pickTransport, Transport } from './transport';
 
@@ -121,19 +123,22 @@ export function getContentApiUrl(options?: { timeoutMs?: number }): Promise<stri
  * records its own events, so the page needs no analytics key and no knowledge of where
  * the events go.
  *
- * The app stamps every event with `event_source: 'external'` — pass your own
- * `event_source` in `params` to identify which experience it came from. The app's own
- * properties (`user_id`, `session_id`, `app_version`, `page_name`) always win, so they
- * cannot be overwritten from the page.
+ * `params.event_source` is required and has no default — it says which experience the
+ * event came from, and an event without it is rejected rather than recorded under a
+ * catch-all. The app's own properties (`user_id`, `session_id`, `app_version`,
+ * `page_name`) always win, so they cannot be overwritten from the page.
  *
  * Resolves once the app has accepted the event, rejects with an `EllaError`
- * (`NOT_IN_ELLA`, `TIMEOUT`, `INTERNAL`). No `timeoutMs` here on purpose: nothing waits on
- * an analytics event, so there is nothing for a caller to tune — the shared default still
- * bounds how long the request is held.
+ * (`NOT_IN_ELLA`, `INVALID_PARAMS`, `TIMEOUT`, `INTERNAL`). No `timeoutMs` here on
+ * purpose: nothing waits on an analytics event, so there is nothing for a caller to tune —
+ * the shared default still bounds how long the request is held.
  */
-export function trackEvent(name: string, params?: EllaEventParams): Promise<void> {
+export function trackEvent(name: string, params: EllaEventParams): Promise<void> {
     if (!name) {
-        return Promise.reject(new EllaError('INTERNAL', 'Event name is required.'));
+        return Promise.reject(new EllaError('INVALID_PARAMS', 'Event name is required.'));
+    }
+    if (!isValidEventSource(params?.[ELLA_EVENT_SOURCE_PARAM])) {
+        return Promise.reject(new EllaError('INVALID_PARAMS', `${ELLA_EVENT_SOURCE_PARAM} is required.`));
     }
     return request<void>(ELLA_MESSAGE_TYPE.trackEventRequest, 'trackEvent', undefined, { name, params });
 }

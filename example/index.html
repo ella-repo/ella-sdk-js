@@ -156,8 +156,8 @@
                 );
                 document.getElementById('track-event').addEventListener('click', () =>
                     run(async () => {
-                        // `event_source` is optional — the app defaults it to "external".
-                        // Set here so the demo's events stay filterable in the report.
+                        // `event_source` is required — no default. The demo names itself,
+                        // so its events stay filterable in the report.
                         const name = 'playback';
                         const params = {
                             event_source: 'sdk-demo',
