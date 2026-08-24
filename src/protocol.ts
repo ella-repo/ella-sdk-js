@@ -11,9 +11,19 @@ export const ELLA_MESSAGE_TYPE = {
     getTokenResponse: 'ella/getToken/response',
     getContentApiUrlRequest: 'ella/getContentApiUrl/request',
     getContentApiUrlResponse: 'ella/getContentApiUrl/response',
+    trackEventRequest: 'ella/trackEvent/request',
+    trackEventResponse: 'ella/trackEvent/response',
 } as const;
 
-export type EllaErrorCode = 'NO_AUTH' | 'TIMEOUT' | 'NOT_IN_ELLA' | 'INTERNAL';
+export type EllaErrorCode = 'NO_AUTH' | 'TIMEOUT' | 'NOT_IN_ELLA' | 'INVALID_PARAMS' | 'INTERNAL';
+
+/** Says which external experience an event came from. Required on every tracked event. */
+export const ELLA_EVENT_SOURCE_PARAM = 'event_source';
+
+/** True when a value is usable as `event_source`: a string with something in it. */
+export function isValidEventSource(value: unknown): value is string {
+    return typeof value === 'string' && value.trim().length > 0;
+}
 
 type EnvelopeBase = {
     channel: typeof ELLA_CHANNEL;
@@ -43,7 +53,28 @@ export type GetContentApiUrlResponse = EnvelopeBase & {
         | { ok: false; error: { code: EllaErrorCode; message: string } }
     );
 
-export type EllaMessage = GetTokenRequest | GetTokenResponse | GetContentApiUrlRequest | GetContentApiUrlResponse;
+/** Event properties sent with `trackEvent()`. The app adds its own on top — its values
+ *  win on a collision, so the page cannot rewrite `user_id`, `page_name` and the rest.
+ *  `event_source` is required: say which experience the event came from. */
+export type EllaEventParams = Record<string, unknown> & { [ELLA_EVENT_SOURCE_PARAM]: string };
+
+export type TrackEventRequest = EnvelopeBase & {
+    type: typeof ELLA_MESSAGE_TYPE.trackEventRequest;
+    name: string;
+    params: EllaEventParams;
+};
+
+export type TrackEventResponse = EnvelopeBase & {
+    type: typeof ELLA_MESSAGE_TYPE.trackEventResponse;
+} & ({ ok: true } | { ok: false; error: { code: EllaErrorCode; message: string } });
+
+export type EllaMessage =
+    | GetTokenRequest
+    | GetTokenResponse
+    | GetContentApiUrlRequest
+    | GetContentApiUrlResponse
+    | TrackEventRequest
+    | TrackEventResponse;
 
 export function isEllaMessage(data: unknown): data is EllaMessage {
     if (typeof data !== 'object' || data === null) return false;

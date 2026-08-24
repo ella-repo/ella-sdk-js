@@ -2,7 +2,8 @@
 
 SDK for web services that run inside the **Ella app** WebView. It exposes an async
 `getToken()` that asks the native app for the signed-in user's auth token, so your
-page can call your backend on the user's behalf.
+page can call your backend on the user's behalf, and `trackEvent()` to send analytics
+events through the app.
 
 The token is the user's **Firebase ID token** (the same one the Ella app sends to its
 own backend as `Authorization: Bearer <token>`). Verify it server-side with the
@@ -64,6 +65,50 @@ const [token, contentApiUrl] = await Promise.all([getToken(), getContentApiUrl()
 await fetch(`${contentApiUrl}/some-endpoint`, {
     headers: { Authorization: `Bearer ${token}` },
 });
+```
+
+### `trackEvent(name: string, params: object): Promise<void>`
+
+Sends an analytics event through the Ella app. The app records it the same way it records
+its own events, so your page needs no analytics key and no knowledge of where the events
+end up.
+
+`params.event_source` is **required** — it says which experience the event came from.
+There is no default: an event that does not name its source is rejected, not filed under a
+catch-all.
+
+```js
+import { trackEvent } from 'ella-sdk-js';
+
+await trackEvent('playback', {
+    event_source: 'partner-player',
+    action: 'play',
+    content_id: 'a1b2c3',
+    position_sec: 0,
+});
+```
+
+Reusing the app's own event names and property names (`playback`, `open_content`,
+`content_id`) keeps your events comparable with the app's in the same report. A name of
+your own works too — the app does not restrict it.
+
+The app adds its own properties (`user_id`, `session_id`, `app_version`, `page_name`) and
+those always win, so a page cannot overwrite them.
+
+Resolves once the app has accepted the event. Rejects with an `EllaError`:
+
+| code             | meaning                                             |
+| ---------------- | --------------------------------------------------- |
+| `INVALID_PARAMS` | no event name, or no non-empty `event_source`       |
+| `NOT_IN_ELLA`    | not running inside the Ella app (or an iframe host) |
+| `TIMEOUT`        | the app didn't respond in time                      |
+| `INTERNAL`       | the app failed to record the event                  |
+
+Analytics should not break a page, so ignore the rejection unless you are debugging the
+integration:
+
+```js
+trackEvent('playback', { event_source: 'partner-player', action: 'end', content_id: 'a1b2c3' }).catch(() => {});
 ```
 
 ### `isInsideElla(): boolean`
